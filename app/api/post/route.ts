@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { YouTubeAPI, MockYouTubeAPI } from '@/lib/social-media/youtube'
 
-// Mock social media API clients
+// Real YouTube API (requires OAuth token)
+// Mock APIs for other platforms (still need implementation)
 class TikTokAPI {
   async postVideo(videoUrl: string, caption: string) {
     // In production, you would use TikTok's API
@@ -27,14 +29,20 @@ class InstagramReelsAPI {
 }
 
 class YouTubeShortsAPI {
-  async postVideo(videoUrl: string, title: string, description: string) {
-    // In production, you would use YouTube Data API
-    await new Promise(resolve => setTimeout(resolve, 1000))
-    return {
-      success: true,
-      videoId: 'youtube_' + Date.now(),
-      url: 'https://youtube.com/shorts/123',
+  private api: YouTubeAPI | MockYouTubeAPI
+
+  constructor(accessToken?: string) {
+    // If we have an access token, use real API
+    // Otherwise use mock for demo
+    if (accessToken) {
+      this.api = new YouTubeAPI({ accessToken })
+    } else {
+      this.api = new MockYouTubeAPI()
     }
+  }
+
+  async postVideo(videoUrl: string, title: string, description: string) {
+    return this.api.postVideo(videoUrl, title, description)
   }
 }
 
@@ -91,7 +99,7 @@ class SchedulerAgent {
 
 export async function POST(request: NextRequest) {
   try {
-    const { videoUrl, platforms } = await request.json()
+    const { videoUrl, platforms, accessTokens } = await request.json()
 
     if (!videoUrl || !platforms || platforms.length === 0) {
       return NextResponse.json(
@@ -117,7 +125,10 @@ export async function POST(request: NextRequest) {
           result = await new InstagramReelsAPI().postVideo(videoUrl, caption)
           break
         case 'youtube':
-          result = await new YouTubeShortsAPI().postVideo(videoUrl, 'Video Title', caption)
+          // Use real API if we have access token, otherwise mock
+          const youtubeToken = accessTokens?.youtube
+          const youtubeAPI = new YouTubeShortsAPI(youtubeToken)
+          result = await youtubeAPI.postVideo(videoUrl, 'AutoShort Generated Video', caption)
           break
         case 'x':
           result = await new XAPI().postVideo(videoUrl, caption)
